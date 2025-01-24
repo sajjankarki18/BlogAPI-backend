@@ -12,11 +12,15 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { PostsStatusEnum } from 'src/enums/PostStatus.enum';
 import { UpdatePostDto } from './entities/update-post.dto';
 import { ILike } from 'typeorm';
+import { CommentsRepository } from '../comments/repository/comment.repository';
+import { Comment } from 'src/comments/entities/comment.entity';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post) private readonly postsRepository: PostRepository,
+    @InjectRepository(Comment)
+    private readonly commentsRepository: CommentsRepository,
   ) {}
 
   async createPost(postDto: CreatePostDto): Promise<Post> {
@@ -153,7 +157,10 @@ export class PostsService {
   }
 
   async deletePost(id: string) {
-    const post = await this.postsRepository.findOne({ where: { id } });
+    const post = await this.postsRepository.findOne({
+      where: { id },
+      relations: ['comment'],
+    });
 
     if (!post) {
       throw new NotFoundException({
@@ -163,7 +170,18 @@ export class PostsService {
       });
     }
 
+    //before deleteing the post, delete the associated comments to that post
+    const postComment = await this.commentsRepository.find({
+      where: {
+        post: { id },
+      },
+    });
+    if (postComment) {
+      await this.commentsRepository.delete({ post: { id } });
+    }
+
     await this.postsRepository.delete(id);
+
     return { id: `${id}`, message: 'post has been deleted!' };
   }
 }

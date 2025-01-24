@@ -1,9 +1,11 @@
+import { Comment } from 'src/comments/entities/comment.entity';
 import { PostsStatusEnum } from 'src/enums/PostStatus.enum';
 import {
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -37,4 +39,7 @@ export class Post {
     default: PostsStatusEnum.Draft,
   })
   status: PostsStatusEnum;
+
+  @OneToMany(() => Comment, (comment) => comment.post)
+  comment: Comment[];
 }
