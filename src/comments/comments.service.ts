@@ -71,13 +71,7 @@ export class CommentsService {
       });
     }
 
-    let new_limit: number;
-
-    if (limit > 5) {
-      new_limit = 5;
-    } else {
-      new_limit = limit;
-    }
+    const new_limit: number = limit > 15 ? 15 : limit;
 
     const [data, total] = await this.commentsRepository.findAndCount({
       skip: (page - 1) * new_limit,

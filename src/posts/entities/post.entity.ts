@@ -1,10 +1,12 @@
 import { Comment } from 'src/comments/entities/comment.entity';
 import { PostsStatusEnum } from 'src/enums/PostStatus.enum';
+import { Category } from '../../categories/entities/category.entity';
 import {
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -40,6 +42,17 @@ export class Post {
   })
   status: PostsStatusEnum;
 
+  /* 
+  one to many relationship between the post and comments 
+  A post can be associated with many comments
+  */
   @OneToMany(() => Comment, (comment) => comment.post)
   comment: Comment[];
+
+  /*
+  many to one relationship between the post and category
+  many post can be associated with the single category
+  */
+  @ManyToOne(() => Category, (category) => category.post)
+  category: Category;
 }

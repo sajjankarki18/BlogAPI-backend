@@ -14,6 +14,8 @@ import { UpdatePostDto } from './entities/update-post.dto';
 import { ILike } from 'typeorm';
 import { CommentsRepository } from '../comments/repository/comment.repository';
 import { Comment } from 'src/comments/entities/comment.entity';
+import { Category } from '../categories/entities/category.entity';
+import { CategoryRepository } from '../categories/repository/category.repository';
 
 @Injectable()
 export class PostsService {
@@ -21,6 +23,8 @@ export class PostsService {
     @InjectRepository(Post) private readonly postsRepository: PostRepository,
     @InjectRepository(Comment)
     private readonly commentsRepository: CommentsRepository,
+    @InjectRepository(Category)
+    private readonly categoriesRepository: CategoryRepository,
   ) {}
 
   async createPost(postDto: CreatePostDto): Promise<Post> {
@@ -85,6 +89,79 @@ export class PostsService {
     return await this.postsRepository.findOne({ where: { id } });
   }
 
+  //get route to fetch the post with the category data
+  async getPostsWithCategoryRecords({
+    page,
+    limit,
+  }: {
+    page: number;
+    limit: number;
+  }): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    //edge cases
+    //Check weather the page and limit are sent correctly from the front end, they should be a positive integers
+    if (isNaN(Number(page)) || isNaN(Number(limit)) || page < 0 || limit < 0) {
+      throw new BadRequestException({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: ['page and limit must be a positive integers'],
+        error: 'Bad Request',
+      });
+    }
+
+    //if the limit is greater then 5 set it as statically 5
+    const new_limit: number = limit > 5 ? 5 : limit;
+
+    //count the total number of posts based on their post status and active status
+    const [postsData, total] = await this.postsRepository.findAndCount({
+      relations: ['category'],
+      where: {
+        status: PostsStatusEnum.Published,
+        is_active: true,
+      },
+      skip: (page - 1) * new_limit,
+      take: new_limit,
+      order: { created_at: 'desc' },
+    });
+
+    //fetch the category data -> to retrieve all the categories associated with the posts by loopin through the post data.
+    const categories = await this.categoriesRepository.find();
+
+    const postCategoryData: any[] = []; // Initialize the array to store the post with catagory data
+
+    for (const post of postsData) {
+      const postCategory = post.category?.id; //first check if the category of that post exists
+
+      if (postCategory) {
+        const categoriesData = categories.find(
+          (category) => category.id === post.category.id,
+        );
+
+        postCategoryData.push({
+          ...post,
+          category: {
+            name: categoriesData ? categoriesData.name : null,
+            id: categoriesData ? categoriesData.id : null,
+          },
+        });
+      } else {
+        //set it as null if there is no category for that post
+        postCategoryData.push({
+          ...post,
+          category: {
+            name: null,
+            id: null,
+          },
+        });
+      }
+    }
+    return {
+      data: postCategoryData,
+      total,
+      page,
+      limit: new_limit,
+    };
+  }
+
+  //get route to fetch only the post data
   async getAllPosts({
     page,
     limit,
@@ -107,13 +184,7 @@ export class PostsService {
       },
     });
 
-    let new_limit: number;
-
-    if (limit > 5) {
-      new_limit = 5;
-    } else {
-      new_limit = limit;
-    }
+    const new_limit: number = limit > 5 ? 5 : limit;
 
     const publishedPost = await this.postsRepository.find({
       where: {
@@ -156,10 +227,10 @@ export class PostsService {
     return await this.postsRepository.findOne({ where: { id } });
   }
 
-  async deletePost(id: string) {
+  async deletePost(id: string): Promise<{ id: string; message: string }> {
     const post = await this.postsRepository.findOne({
       where: { id },
-      relations: ['comment'],
+      relations: ['comment', 'category'],
     });
 
     if (!post) {
@@ -169,6 +240,15 @@ export class PostsService {
         error: 'Not Found',
       });
     }
+
+    /* 
+    since we are soft deleting a post we can just update the deleted at as new Date object.
+    Set is_active as false.
+    */
+    await this.postsRepository.update(
+      { id },
+      { deleted_at: new Date(), is_active: false },
+    );
 
     //before deleteing the post, delete the associated comments to that post
     const postComment = await this.commentsRepository.find({
@@ -180,7 +260,17 @@ export class PostsService {
       await this.commentsRepository.delete({ post: { id } });
     }
 
-    await this.postsRepository.delete(id);
+    //delete the associated category
+    if (post.category) {
+      const postCategory = await this.categoriesRepository.findOne({
+        where: {
+          id: post.category.id,
+        },
+      });
+      if (postCategory) {
+        await this.categoriesRepository.delete({ id: post.category.id });
+      }
+    }
 
     return { id: `${id}`, message: 'post has been deleted!' };
   }
