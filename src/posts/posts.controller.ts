@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './entities/update-post.dto';
 import { isEmpty } from 'class-validator';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Controller('/blogs/posts')
 export class PostsController {
@@ -32,6 +32,13 @@ export class PostsController {
   @Get('/:id')
   getPostById(@Param('id') id: string) {
     return this.postsService.getPostById(id);
+  }
+
+  @Get('/filter/posts-category')
+  filterPostsWithSelectedCategory(
+    @Query('category_name') category_name: string,
+  ) {
+    return this.postsService.filterPosts(category_name);
   }
 
   @Get('/by-categories')

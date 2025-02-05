@@ -10,12 +10,12 @@ import { Post } from './entities/post.entity';
 import { PostRepository } from './repositories/repository.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PostsStatusEnum } from 'src/enums/PostStatus.enum';
-import { UpdatePostDto } from './entities/update-post.dto';
 import { ILike } from 'typeorm';
 import { CommentsRepository } from '../comments/repository/comment.repository';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { Category } from '../categories/entities/category.entity';
 import { CategoryRepository } from '../categories/repository/category.repository';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
@@ -159,6 +159,52 @@ export class PostsService {
       page,
       limit: new_limit,
     };
+  }
+
+  async filterPosts(category_name: string): Promise<{ data: any[] }> {
+    try {
+      const posts = await this.postsRepository.find({
+        where: {
+          status: PostsStatusEnum.Published,
+        },
+        relations: ['category'],
+      });
+      const categories = await this.categoriesRepository.find();
+      const filtered_posts: any[] = [];
+
+      const filtered_categories = categories.filter((cat) => {
+        const category = cat.name === category_name;
+        if (!category) {
+          throw new NotFoundException({
+            statusCode: HttpStatus.NOT_FOUND,
+            message: ['category not found'],
+            error: 'Not Found',
+          });
+        }
+        return category;
+      });
+
+      for (const category of filtered_categories) {
+        posts.filter((post) => {
+          const categoryId = post.category?.id;
+          const postsCategory = categoryId === category.id;
+
+          filtered_posts.push({
+            postsCategory,
+          });
+        });
+      }
+
+      return {
+        data: filtered_categories,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: ['some error occured while filtering categories', error],
+        error: 'Internal server',
+      });
+    }
   }
 
   //get route to fetch only the post data
